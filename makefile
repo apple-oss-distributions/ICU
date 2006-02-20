@@ -139,19 +139,19 @@ LIBOVERRIDES=LIBICUDT="-L$(OBJROOT) -l$(LIB_NAME)" \
 
 ENV=	APPLE_INTERNAL_DIR="$(APPLE_INTERNAL_DIR)" \
 	CFLAGS="-DICU_DATA_DIR=\"\\\"/usr/share/icu/\\\"\" $(RC_ARCHS:%=-arch %) -g -Os -fno-exceptions" \
-	CXXFLAGS="-DICU_DATA_DIR=\"\\\"/usr/share/icu/\\\"\" $(RC_ARCHS:%=-arch %) -g -Os -fno-exceptions -fno-rtti" \
+	CXXFLAGS="-DICU_DATA_DIR=\"\\\"/usr/share/icu/\\\"\" $(RC_ARCHS:%=-arch %) -g -Os -fno-exceptions -fno-rtti -fvisibility-inlines-hidden" \
 	RC_ARCHS="$(RC_ARCHS)" \
 	DYLD_LIBRARY_PATH="$(DSTROOT)/usr/local/lib"
 	
 ENV_CONFIGURE=	APPLE_INTERNAL_DIR="$(APPLE_INTERNAL_DIR)" \
 	CFLAGS="-DICU_DATA_DIR=\"\\\"/usr/share/icu/\\\"\" -g -Os -fno-exceptions" \
-	CXXFLAGS="-DICU_DATA_DIR=\"\\\"/usr/share/icu/\\\"\" -g -Os -fno-exceptions -fno-rtti" \
+	CXXFLAGS="-DICU_DATA_DIR=\"\\\"/usr/share/icu/\\\"\" -g -Os -fno-exceptions -fno-rtti -fvisibility-inlines-hidden" \
 	RC_ARCHS="$(RC_ARCHS)" \
 	DYLD_LIBRARY_PATH="$(DSTROOT)/usr/local/lib"
 
 ENV_DEBUG = APPLE_INTERNAL_DIR="$(APPLE_INTERNAL_DIR)" \
 	CFLAGS="-DICU_DATA_DIR=\"\\\"/usr/share/icu/\\\"\" $(RC_ARCHS:%=-arch %) -O0 -g -fno-exceptions" \
-	CXXFLAGS="-DICU_DATA_DIR=\"\\\"/usr/share/icu/\\\"\" $(RC_ARCHS:%=-arch %) -O0 -g -fno-exceptions -fno-rtti" \
+	CXXFLAGS="-DICU_DATA_DIR=\"\\\"/usr/share/icu/\\\"\" $(RC_ARCHS:%=-arch %) -O0 -g -fno-exceptions -fno-rtti -fvisibility-inlines-hidden" \
 	RC_ARCHS="$(RC_ARCHS)" \
 	DYLD_LIBRARY_PATH="$(DSTROOT)/usr/local/lib"
 
@@ -178,8 +178,10 @@ endif
 icu debug : $(OBJROOT)/Makefile
 	(cd $(OBJROOT); \
 		$(MAKE) $($(ENV_$@)); \
+		tmpfile=`mktemp -t weakexternal` || exit 1; \
+		nm -m $(COMMON_OBJ) $(I18N_OBJ) $(STUB_DATA_OBJ) | fgrep "weak external" | fgrep -v "undefined" | sed -e 's/.*weak external //' | uniq | cat >$$tmpfile; \
 		$($(ENV_$@)) $(CXX) -current_version $(ICU_VERS).$(ICU_SUBVERS) -compatibility_version 1 -dynamiclib -dynamic \
-			$(RC_ARCHS:%=-arch %) $(CXXFLAGS) $(LDFLAGS) -single_module $(SECTORDER_FLAGS) \
+			$(RC_ARCHS:%=-arch %) $(CXXFLAGS) $(LDFLAGS) -single_module $(SECTORDER_FLAGS) -unexported_symbols_list $$tmpfile \
 			-install_name $(libdir)$(INSTALLED_DYLIB) -o ./$(INSTALLED_DYLIB) $(COMMON_OBJ) $(I18N_OBJ) $(STUB_DATA_OBJ); \
 		if test -f ./$(ICU_DATA_DIR)/$(B_DATA_FILE); then \
 			ln -fs ./$(ICU_DATA_DIR)/$(B_DATA_FILE); \
