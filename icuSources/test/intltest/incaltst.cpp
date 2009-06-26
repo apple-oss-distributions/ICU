@@ -1,6 +1,6 @@
 /***********************************************************************
  * COPYRIGHT: 
- * Copyright (c) 1997-2005, International Business Machines Corporation
+ * Copyright (c) 1997-2008, International Business Machines Corporation
  * and others. All Rights Reserved.
  ***********************************************************************/
 
@@ -75,6 +75,9 @@ void IntlCalendarTest::runIndexedTest( int32_t index, UBool exec, const char* &n
     CASE(4,TestBuddhistFormat);
     CASE(5,TestJapaneseFormat);
     CASE(6,TestJapanese3860);
+    CASE(7,TestPersian);
+    CASE(8,TestPersianFormat);
+    CASE(9,TestTaiwan);
     default: name = ""; break;
     }
 }
@@ -287,9 +290,62 @@ void IntlCalendarTest::TestBuddhist() {
     // end sanity check
 
 
-    quasiGregorianTest(*cal,Locale("th_TH"),data);
+    quasiGregorianTest(*cal,Locale("th_TH@calendar=gregorian"),data);
     delete cal;
 }
+
+
+/**
+ * Verify that TaiWanCalendar shifts years to Minguo Era but otherwise
+ * behaves like GregorianCalendar.
+ */
+void IntlCalendarTest::TestTaiwan() {
+    // MG 1 == 1912 AD
+    UDate timeA = Calendar::getNow();
+    
+    // TODO port these to the data items
+    int32_t data[] = {
+        1,           // B. era   [928479600000]
+        1,        // B. year
+        1912,        // G. year
+        UCAL_JUNE,   // month
+        4,           // day
+
+        1,           // B. era   [-79204842000000]
+        3,           // B. year
+        1914,        // G. year
+        UCAL_FEBRUARY, // month
+        12,          // day
+
+        1,           // B. era   [-79204842000000]
+        96,           // B. year
+        2007,        // G. year
+        UCAL_FEBRUARY, // month
+        12,          // day
+
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+    };
+    Calendar *cal;
+    UErrorCode status = U_ZERO_ERROR;
+    cal = Calendar::createInstance("en_US@calendar=roc", status);
+    CHECK(status, UnicodeString("Creating en_US@calendar=roc calendar"));
+
+    // Sanity check the calendar 
+    UDate timeB = Calendar::getNow();
+    UDate timeCal = cal->getTime(status);
+
+    if(!(timeA <= timeCal) || !(timeCal <= timeB)) {
+      errln((UnicodeString)"Error: Calendar time " + timeCal +
+            " is not within sampled times [" + timeA + " to " + timeB + "]!");
+    }
+    // end sanity check
+
+
+    quasiGregorianTest(*cal,Locale("en_US"),data);
+    delete cal;
+}
+
+
 
 /**
  * Verify that JapaneseCalendar shifts years to Japanese Eras but otherwise
@@ -339,6 +395,8 @@ void IntlCalendarTest::TestJapanese() {
     quasiGregorianTest(*cal,Locale("ja_JP"),data);
     delete cal;
 }
+
+
 
 void IntlCalendarTest::TestBuddhistFormat() {
     UErrorCode status = U_ZERO_ERROR;
@@ -417,6 +475,8 @@ void IntlCalendarTest::TestBuddhistFormat() {
     }
 }
 
+// TaiwanFormat has been moved to testdata/format.txt
+
 
 void IntlCalendarTest::TestJapaneseFormat() {
     Calendar *cal;
@@ -463,7 +523,21 @@ void IntlCalendarTest::TestJapaneseFormat() {
 
     // Test parse with incomplete information
     fmt = new SimpleDateFormat(UnicodeString("G y"), Locale("en_US@calendar=japanese"), status);
-    aDate = -3197120400000.;
+    /* The test data below should points to 1868-09-08T00:00:00 in America/Los_Angeles.
+     * The time calculated by original test code uses -7:00 UTC offset, because it assumes
+     * DST is observed (because of a timezone bug, DST is observed for early 20th century
+     * day to infinite past time).  The bug was fixed and DST is no longer used for time before
+     * 1900 for any zones.  However, ICU timezone transition data is represented by 32-bit integer
+     * (sec) and cannot represent transitions before 1901 defined in Olson tzdata.  For example,
+     * based on Olson definition, offset -7:52:58 should be used for Nov 18, 1883 or older dates.
+     * If ICU properly capture entire Olson zone definition, the start time of "Meiji 1" is
+     * -3197117222000. -Yoshito
+     */
+    /* TODO: When ICU support the Olson LMT offset for America/Los_Angeles, we need to update
+     * the reference data.
+     */
+    //aDate = -3197120400000.;
+    aDate = -3197116800000.;
     CHECK(status, "creating date format instance");
     if(!fmt) { 
         errln("Coudln't create en_US instance");
@@ -515,7 +589,8 @@ void IntlCalendarTest::TestJapaneseFormat() {
     }
     {
         UnicodeString expect = CharsToUnicodeString("\\u5b89\\u6c385\\u5e747\\u67084\\u65e5\\u6728\\u66dc\\u65e5");
-        UDate         expectDate = -6106035600000.0;
+        //UDate         expectDate = -6106035600000.0;
+        UDate         expectDate = -6106032000000.0; // 1776-07-04T00:00:00Z-0800
         Locale        loc("ja_JP@calendar=japanese");
         
         status = U_ZERO_ERROR;
@@ -534,7 +609,8 @@ void IntlCalendarTest::TestJapaneseFormat() {
     {   // This Feb 29th falls on a leap year by gregorian year, but not by Japanese year.
         UnicodeString expect = CharsToUnicodeString("\\u5EB7\\u6B632\\u5e742\\u670829\\u65e5\\u65e5\\u66dc\\u65e5");
         // Add -1:00 to the following for historical TZ - aliu
-        UDate         expectDate =  -16214403600000.0;  // courtesy of date format round trip test
+        //UDate         expectDate =  -16214403600000.0;  // courtesy of date format round trip test
+        UDate         expectDate =  -16214400000000.0;  // 1456-03-09T00:00:00Z-0800
         Locale        loc("ja_JP@calendar=japanese");
         
         status = U_ZERO_ERROR;
@@ -583,7 +659,7 @@ void IntlCalendarTest::TestJapanese3860()
             int32_t gotYear = cal2->get(UCAL_YEAR, s2);
             int32_t gotEra = cal2->get(UCAL_ERA, s2);
             int32_t expectYear = 1;
-            int32_t expectEra = JapaneseCalendar::kCurrentEra;
+            int32_t expectEra = JapaneseCalendar::getCurrentEra();
             if((gotYear!=1) || (gotEra != expectEra)) {
                 errln(UnicodeString("parse "+samplestr+" of 'y.m.d' as Japanese Calendar, expected year ") + expectYear + 
                     UnicodeString(" and era ") + expectEra +", but got year " + gotYear + " and era " + gotEra + " (Gregorian:" + str +")");
@@ -640,6 +716,80 @@ void IntlCalendarTest::TestJapanese3860()
     delete cal;
     delete fmt2;
 }
+
+
+
+
+/**
+ * Verify the Persian Calendar.
+ */
+void IntlCalendarTest::TestPersian() {
+    UDate timeA = Calendar::getNow();
+    
+    Calendar *cal;
+    UErrorCode status = U_ZERO_ERROR;
+    cal = Calendar::createInstance("fa_IR@calendar=persian", status);
+    CHECK(status, UnicodeString("Creating fa_IR@calendar=persian calendar"));
+    // Sanity check the calendar 
+    UDate timeB = Calendar::getNow();
+    UDate timeCal = cal->getTime(status);
+
+    if(!(timeA <= timeCal) || !(timeCal <= timeB)) {
+      errln((UnicodeString)"Error: Calendar time " + timeCal +
+            " is not within sampled times [" + timeA + " to " + timeB + "]!");
+    }
+    // end sanity check
+// quasiGregorianTest(*cal,Locale("ja_JP"),data);
+    delete cal;
+}
+
+void IntlCalendarTest::TestPersianFormat() {
+    UErrorCode status = U_ZERO_ERROR;
+    SimpleDateFormat *fmt = new SimpleDateFormat(UnicodeString("MMMM d, yyyy G"), Locale(" en_US@calendar=persian"), status);
+    CHECK(status, "creating date format instance");
+    SimpleDateFormat *fmt2 = new SimpleDateFormat(UnicodeString("MMMM d, yyyy G"), Locale("en_US@calendar=gregorian"), status);
+    CHECK(status, "creating gregorian date format instance");
+    UnicodeString gregorianDate("January 18, 2007 AD");
+    UDate aDate = fmt2->parse(gregorianDate, status); 
+    if(!fmt) { 
+        errln("Coudln't create en_US instance");
+    } else {
+        UnicodeString str;
+        fmt->format(aDate, str);
+        logln(UnicodeString() + "as Persian Calendar: " + escape(str));
+        UnicodeString expected("Dey 28, 1385 AP");
+        if(str != expected) {
+            errln("Expected " + escape(expected) + " but got " + escape(str));
+        }
+        UDate otherDate = fmt->parse(expected, status); 
+        if(otherDate != aDate) { 
+            UnicodeString str3;
+            fmt->format(otherDate, str3);
+            errln("Parse incorrect of " + escape(expected) + " - wanted " + aDate + " but got " +  otherDate + ", " + escape(str3)); 
+        } else {
+            logln("Parsed OK: " + expected);
+        }
+        // Two digit year parsing problem #4732
+        fmt->applyPattern("yy-MM-dd");
+        str.remove();
+        fmt->format(aDate, str);
+        expected.setTo("85-10-28");
+        if(str != expected) {
+            errln("Expected " + escape(expected) + " but got " + escape(str));
+        }
+        otherDate = fmt->parse(expected, status);
+        if (otherDate != aDate) {
+            errln("Parse incorrect of " + escape(expected) + " - wanted " + aDate + " but got " + otherDate); 
+        } else {
+            logln("Parsed OK: " + expected);
+        }
+        delete fmt;
+    }
+    delete fmt2;
+    
+    CHECK(status, "Error occured testing Persian Calendar in English "); 
+}
+
 
 void IntlCalendarTest::simpleTest(const Locale& loc, const UnicodeString& expect, UDate expectDate, UErrorCode& status)
 {
