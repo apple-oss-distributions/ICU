@@ -1,6 +1,6 @@
 /***********************************************************************
  * COPYRIGHT: 
- * Copyright (c) 1997-2013, International Business Machines Corporation
+ * Copyright (c) 1997-2014, International Business Machines Corporation
  * and others. All Rights Reserved.
  ***********************************************************************/
 
@@ -66,11 +66,14 @@ void TimeZoneTest::runIndexedTest( int32_t index, UBool exec, const char* &name,
     TESTCASE_AUTO(TestAliasedNames);
     TESTCASE_AUTO(TestFractionalDST);
     TESTCASE_AUTO(TestFebruary);
+    TESTCASE_AUTO(TestCanonicalIDAPI);
     TESTCASE_AUTO(TestCanonicalID);
     TESTCASE_AUTO(TestDisplayNamesMeta);
     TESTCASE_AUTO(TestGetRegion);
     TESTCASE_AUTO(TestGetAvailableIDsNew);
     TESTCASE_AUTO(TestGetUnknown);
+    TESTCASE_AUTO(TestGetWindowsID);
+    TESTCASE_AUTO(TestGetIDForWindowsID);
     TESTCASE_AUTO_END;
 }
 
@@ -108,21 +111,21 @@ TimeZoneTest::TestGenericAPI()
 
     TimeZone* saveDefault = TimeZone::createDefault();
     logln((UnicodeString)"TimeZone::createDefault() => " + saveDefault->getID(id));
-    TimeZone* pstZone = TimeZone::createTimeZone("America/Los_Angeles");
+
+    TimeZone::adoptDefault(zone);
+    TimeZone* defaultzone = TimeZone::createDefault();
+    if (defaultzone == zone ||
+        !(*defaultzone == *zone))
+        errln("FAIL: createDefault failed");
+    TimeZone::adoptDefault(saveDefault);
+    delete defaultzone;
+    delete zoneclone;
 
     logln("call uprv_timezone() which uses the host");
     logln("to get the difference in seconds between coordinated universal");
     logln("time and local time. E.g., -28,800 for PST (GMT-8hrs)");
 
     int32_t tzoffset = uprv_timezone();
-    logln(UnicodeString("Value returned from uprv_timezone = ") + tzoffset);
-    // Invert sign because UNIX semantics are backwards
-    if (tzoffset < 0)
-        tzoffset = -tzoffset;
-    if ((*saveDefault == *pstZone) && (tzoffset != 28800)) {
-        errln("FAIL: t_timezone may be incorrect.  It is not 28800");
-    }
-
     if ((tzoffset % 900) != 0) {
         /*
          * Ticket#6364 and #7648
@@ -133,16 +136,6 @@ TimeZoneTest::TestGenericAPI()
          */
         infoln("WARNING: t_timezone may be incorrect. It is not a multiple of 15min.", tzoffset);
     }
-
-    TimeZone::adoptDefault(zone);
-    TimeZone* defaultzone = TimeZone::createDefault();
-    if (defaultzone == zone ||
-        !(*defaultzone == *zone))
-        errln("FAIL: createDefault failed");
-    TimeZone::adoptDefault(saveDefault);
-    delete defaultzone;
-    delete zoneclone;
-    delete pstZone;
 
     UErrorCode status = U_ZERO_ERROR;
     const char* tzver = TimeZone::getTZDataVersion(status);
@@ -863,7 +856,7 @@ void TimeZoneTest::TestShortZoneIDs()
         {"ECT", 60, TRUE},    // ICU Link - Europe/Paris
         {"MET", 60, TRUE},    // Olson europe 1:00 C-Eur
         {"CAT", 120, FALSE},  // ICU Link - Africa/Harare
-        {"ART", 120, FALSE},  // ICU Link - Africa/Cairo
+        {"ART", 120, TRUE},   // ICU Link - Africa/Cairo
         {"EET", 120, TRUE},   // Olson europe 2:00 EU
         {"EAT", 180, FALSE},  // ICU Link - Africa/Addis_Ababa
         {"NET", 240, FALSE},  // ICU Link - Asia/Yerevan
@@ -1946,6 +1939,34 @@ void TimeZoneTest::TestFebruary() {
         }
     }
 }
+
+void TimeZoneTest::TestCanonicalIDAPI() {
+    // Bogus input string.
+    UnicodeString bogus;
+    bogus.setToBogus();
+    UnicodeString canonicalID;
+    UErrorCode ec = U_ZERO_ERROR;
+    UnicodeString *pResult = &TimeZone::getCanonicalID(bogus, canonicalID, ec);
+    assertEquals("TimeZone::getCanonicalID(bogus) should fail", U_ILLEGAL_ARGUMENT_ERROR, ec);
+    assertTrue("TimeZone::getCanonicalID(bogus) should return the dest string", pResult == &canonicalID);
+
+    // U_FAILURE on input.
+    UnicodeString berlin("Europe/Berlin");
+    ec = U_MEMORY_ALLOCATION_ERROR;
+    pResult = &TimeZone::getCanonicalID(berlin, canonicalID, ec);
+    assertEquals("TimeZone::getCanonicalID(failure) should fail", U_MEMORY_ALLOCATION_ERROR, ec);
+    assertTrue("TimeZone::getCanonicalID(failure) should return the dest string", pResult == &canonicalID);
+
+    // Valid input should un-bogus the dest string.
+    canonicalID.setToBogus();
+    ec = U_ZERO_ERROR;
+    pResult = &TimeZone::getCanonicalID(berlin, canonicalID, ec);
+    assertSuccess("TimeZone::getCanonicalID(bogus dest) should succeed", ec, TRUE);
+    assertTrue("TimeZone::getCanonicalID(bogus dest) should return the dest string", pResult == &canonicalID);
+    assertFalse("TimeZone::getCanonicalID(bogus dest) should un-bogus the dest string", canonicalID.isBogus());
+    assertEquals("TimeZone::getCanonicalID(bogus dest) unexpected result", canonicalID, berlin, TRUE);
+}
+
 void TimeZoneTest::TestCanonicalID() {
 
     // Some canonical IDs in CLDR are defined as "Link"
@@ -1954,27 +1975,62 @@ void TimeZoneTest::TestCanonicalID() {
         const char *alias;
         const char *zone;
     } excluded1[] = {
+        {"Africa/Bamako", "Africa/Abidjan"},
+        {"Africa/Banjul", "Africa/Abidjan"},
+        {"Africa/Brazzaville", "Africa/Bangui"},
+        {"Africa/Conakry", "Africa/Abidjan"},
+        {"Africa/Dakar", "Africa/Abidjan"},
+        {"Africa/Douala", "Africa/Bangui"},
+        {"Africa/Freetown", "Africa/Abidjan"},
+        {"Africa/Khartoum", "Africa/Juba"},
+        {"Africa/Kinshasa", "Africa/Bangui"},
+        {"Africa/Lagos", "Africa/Bangui"},
+        {"Africa/Libreville", "Africa/Bangui"},
+        {"Africa/Lome", "Africa/Abidjan"},
+        {"Africa/Luanda", "Africa/Bangui"},
+        {"Africa/Malabo", "Africa/Bangui"},
+        {"Africa/Niamey", "Africa/Bangui"},
+        {"Africa/Nouakchott", "Africa/Abidjan"},
+        {"Africa/Ouagadougou", "Africa/Abidjan"},
+        {"Africa/Porto-Novo", "Africa/Bangui"},
+        {"Africa/Sao_Tome", "Africa/Abidjan"},
+        {"America/Curacao", "America/Aruba"},
+        {"America/Dominica", "America/Anguilla"},
+        {"America/Grenada", "America/Anguilla"},
+        {"America/Guadeloupe", "America/Anguilla"},
+        {"America/Kralendijk", "America/Aruba"},
+        {"America/Lower_Princes", "America/Aruba"},
+        {"America/Marigot", "America/Anguilla"},
+        {"America/Montserrat", "America/Anguilla"},
+        {"America/Port_of_Spain", "America/Anguilla"},
         {"America/Shiprock", "America/Denver"}, // America/Shiprock is defined as a Link to America/Denver in tzdata
-        {"America/Marigot", "America/Guadeloupe"}, 
-        {"America/St_Barthelemy", "America/Guadeloupe"},
-        {"America/Lower_Princes", "America/Curacao"},
-        {"America/Kralendijk", "America/Curacao"},
+        {"America/St_Barthelemy", "America/Anguilla"},
+        {"America/St_Kitts", "America/Anguilla"},
+        {"America/St_Lucia", "America/Anguilla"},
+        {"America/St_Thomas", "America/Anguilla"},
+        {"America/St_Vincent", "America/Anguilla"},
+        {"America/Tortola", "America/Anguilla"},
+        {"America/Virgin", "America/Anguilla"},
         {"Antarctica/South_Pole", "Antarctica/McMurdo"},
-        {"Atlantic/Jan_Mayen", "Europe/Oslo"},
         {"Arctic/Longyearbyen", "Europe/Oslo"},
+        {"Atlantic/Jan_Mayen", "Europe/Oslo"},
+        {"Atlantic/St_Helena", "Africa/Abidjan"},
+        {"Europe/Bratislava", "Europe/Prague"},
         {"Europe/Busingen", "Europe/Zurich"},
         {"Europe/Guernsey", "Europe/London"},
         {"Europe/Isle_of_Man", "Europe/London"},
         {"Europe/Jersey", "Europe/London"},
         {"Europe/Ljubljana", "Europe/Belgrade"},
+        {"Europe/Mariehamn", "Europe/Helsinki"},
         {"Europe/Podgorica", "Europe/Belgrade"},
+        {"Europe/San_Marino", "Europe/Rome"},
         {"Europe/Sarajevo", "Europe/Belgrade"},
         {"Europe/Skopje", "Europe/Belgrade"},
-        {"Europe/Zagreb", "Europe/Belgrade"},
-        {"Europe/Bratislava", "Europe/Prague"},
-        {"Europe/Mariehamn", "Europe/Helsinki"},
-        {"Europe/San_Marino", "Europe/Rome"},
+        {"Europe/Vaduz", "Europe/Zurich"},
         {"Europe/Vatican", "Europe/Rome"},
+        {"Europe/Zagreb", "Europe/Belgrade"},
+        {"Pacific/Auckland", "Antarctica/McMurdo"},
+        {"Pacific/Johnston", "Pacific/Honolulu"},
         {0, 0}
     };
 
@@ -2223,7 +2279,8 @@ void TimeZoneTest::TestGetRegion()
         {"Europe/Helsinki",                 "FI"},
         {"Europe/Mariehamn",                "AX"},  // Link Europe/Helsinki, but in zone.tab
         {"Asia/Riyadh",                     "SA"},
-        {"Asia/Riyadh87",                   "001"}, // this should be "SA" actually, but not in zone.tab
+        // tz file solar87 was removed from tzdata2013i
+        // {"Asia/Riyadh87",                   "001"}, // this should be "SA" actually, but not in zone.tab
         {"Etc/Unknown",                     0},  // CLDR canonical, but not a sysmte zone ID
         {"bogus",                           0},  // bogus
         {"GMT+08:00",                       0},  // a custom ID, not a system zone ID
@@ -2299,6 +2356,64 @@ void TimeZoneTest::TestGetUnknown() {
     assertEquals("getUnknown() wrong ID", expectedID, unknown.getID(id));
     assertTrue("getUnknown() wrong offset", 0 == unknown.getRawOffset());
     assertFalse("getUnknown() uses DST", unknown.useDaylightTime());
+}
+
+void TimeZoneTest::TestGetWindowsID(void) {
+    static const struct {
+        const char *id;
+        const char *winid;
+    } TESTDATA[] = {
+        {"America/New_York",        "Eastern Standard Time"},
+        {"America/Montreal",        "Eastern Standard Time"},
+        {"America/Los_Angeles",     "Pacific Standard Time"},
+        {"America/Vancouver",       "Pacific Standard Time"},
+        {"Asia/Shanghai",           "China Standard Time"},
+        {"Asia/Chongqing",          "China Standard Time"},
+        {"America/Indianapolis",    "US Eastern Standard Time"},            // CLDR canonical name
+        {"America/Indiana/Indianapolis",    "US Eastern Standard Time"},    // tzdb canonical name
+        {"Asia/Khandyga",           "Yakutsk Standard Time"},
+        {"Australia/Eucla",         ""}, // No Windows ID mapping
+        {"Bogus",                   ""},
+        {0,                         0},
+    };
+
+    for (int32_t i = 0; TESTDATA[i].id != 0; i++) {
+        UErrorCode sts = U_ZERO_ERROR;
+        UnicodeString windowsID;
+
+        TimeZone::getWindowsID(UnicodeString(TESTDATA[i].id), windowsID, sts);
+        assertSuccess(TESTDATA[i].id, sts);
+        assertEquals(TESTDATA[i].id, UnicodeString(TESTDATA[i].winid), windowsID, TRUE);
+    }
+}
+
+void TimeZoneTest::TestGetIDForWindowsID(void) {
+    static const struct {
+        const char *winid;
+        const char *region;
+        const char *id;
+    } TESTDATA[] = {
+        {"Eastern Standard Time",   0,      "America/New_York"},
+        {"Eastern Standard Time",   "US",   "America/New_York"},
+        {"Eastern Standard Time",   "CA",   "America/Toronto"},
+        {"Eastern Standard Time",   "CN",   "America/New_York"},
+        {"China Standard Time",     0,      "Asia/Shanghai"},
+        {"China Standard Time",     "CN",   "Asia/Shanghai"},
+        {"China Standard Time",     "HK",   "Asia/Hong_Kong"},
+        {"Mid-Atlantic Standard Time",  0,  ""}, // No tz database mapping
+        {"Bogus",                   0,      ""},
+        {0,                         0,      0},
+    };
+
+    for (int32_t i = 0; TESTDATA[i].winid != 0; i++) {
+        UErrorCode sts = U_ZERO_ERROR;
+        UnicodeString id;
+
+        TimeZone::getIDForWindowsID(UnicodeString(TESTDATA[i].winid), TESTDATA[i].region,
+                                    id, sts);
+        assertSuccess(UnicodeString(TESTDATA[i].winid) + "/" + TESTDATA[i].region, sts);
+        assertEquals(UnicodeString(TESTDATA[i].winid) + "/" + TESTDATA[i].region, TESTDATA[i].id, id, TRUE);
+    }
 }
 
 #endif /* #if !UCONFIG_NO_FORMATTING */

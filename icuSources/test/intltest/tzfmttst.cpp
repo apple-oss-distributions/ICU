@@ -1,6 +1,6 @@
 /*
 *******************************************************************************
-* Copyright (C) 2007-2013, International Business Machines Corporation and    *
+* Copyright (C) 2007-2014, International Business Machines Corporation and    *
 * others. All Rights Reserved.                                                *
 *******************************************************************************
 */
@@ -75,6 +75,7 @@ TimeZoneFormatTest::runIndexedTest( int32_t index, UBool exec, const char* &name
         TESTCASE(1, TestTimeRoundTrip);
         TESTCASE(2, TestParse);
         TESTCASE(3, TestISOFormat);
+        TESTCASE(4, TestFormat);
         default: name = ""; break;
     }
 }
@@ -333,6 +334,40 @@ TimeZoneFormatTest::TestTimeZoneRoundTrip(void) {
     delete tzids;
 }
 
+// Special exclusions in TestTimeZoneRoundTrip.
+// These special cases do not round trip time as designed.
+static UBool isSpecialTimeRoundTripCase(const char* loc,
+                                        const UnicodeString& id,
+                                        const char* pattern,
+                                        UDate time) {
+    struct {
+        const char* loc;
+        const char* id;
+        const char* pattern;
+        UDate time;
+    } EXCLUSIONS[] = {
+        {NULL, "Asia/Chita", "zzzz", 1414252800000.0},
+        {NULL, "Asia/Chita", "vvvv", 1414252800000.0},
+        {NULL, "Asia/Srednekolymsk", "zzzz", 1414241999999.0},
+        {NULL, "Asia/Srednekolymsk", "vvvv", 1414241999999.0},
+        {NULL, NULL, NULL, U_DATE_MIN}
+    };
+
+    UBool isExcluded = FALSE;
+    for (int32_t i = 0; EXCLUSIONS[i].id != NULL; i++) {
+        if (EXCLUSIONS[i].loc == NULL || uprv_strcmp(loc, EXCLUSIONS[i].loc) == 0) {
+            if (id.compare(EXCLUSIONS[i].id) == 0) {
+                if (EXCLUSIONS[i].pattern == NULL || uprv_strcmp(pattern, EXCLUSIONS[i].pattern) == 0) {
+                    if (EXCLUSIONS[i].time == U_DATE_MIN || EXCLUSIONS[i].time == time) {
+                        isExcluded = TRUE;
+                    }
+                }
+            }
+        }
+    }
+    return isExcluded;
+}
+
 struct LocaleData {
     int32_t index;
     int32_t testCounts;
@@ -456,6 +491,11 @@ public:
                         }
                     }
 
+                    if (*tzid == "Pacific/Apia" && uprv_strcmp(PATTERNS[patidx], "vvvv") == 0
+                            && log.logKnownIssue("11052", "Ambiguous zone name - Samoa Time")) {
+                        continue;
+                    }
+
                     BasicTimeZone *tz = (BasicTimeZone*) TimeZone::createTimeZone(*tzid);
                     sdf->setTimeZone(*tz);
 
@@ -525,7 +565,9 @@ public:
                                 UnicodeString msg = (UnicodeString) "Time round trip failed for " + "tzid=" + *tzid + ", locale=" + data.locales[locidx].getName() + ", pattern=" + PATTERNS[patidx]
                                         + ", text=" + text + ", time=" + testTimes[testidx] + ", restime=" + parsedDate + ", diff=" + (parsedDate - testTimes[testidx]);
                                 // Timebomb for TZData update
-                                if (expectedRoundTrip[testidx]) {
+                                if (expectedRoundTrip[testidx]
+                                        && !isSpecialTimeRoundTripCase(data.locales[locidx].getName(), *tzid,
+                                                PATTERNS[patidx], testTimes[testidx])) {
                                     log.errln((UnicodeString) "FAIL: " + msg);
                                 } else if (REALLY_VERBOSE) {
                                     log.logln(msg);
@@ -915,5 +957,113 @@ TimeZoneFormatTest::TestISOFormat(void) {
     }
 }
 
+
+typedef struct {
+    const char*     locale;
+    const char*     tzid;
+    UDate           date;
+    UTimeZoneFormatStyle    style;
+    const char*     expected;
+    UTimeZoneFormatTimeType timeType;
+} FormatTestData;
+
+void
+TimeZoneFormatTest::TestFormat(void) {
+    UDate dateJan = 1358208000000.0;    // 2013-01-15T00:00:00Z
+    UDate dateJul = 1373846400000.0;    // 2013-07-15T00:00:00Z
+
+    const FormatTestData DATA[] = {
+        {
+            "en",
+            "America/Los_Angeles", 
+            dateJan,
+            UTZFMT_STYLE_GENERIC_LOCATION,
+            "Los Angeles Time",
+            UTZFMT_TIME_TYPE_UNKNOWN
+        },
+        {
+            "en",
+            "America/Los_Angeles",
+            dateJan,
+            UTZFMT_STYLE_GENERIC_LONG,
+            "Pacific Time",
+            UTZFMT_TIME_TYPE_UNKNOWN
+        },
+        {
+            "en",
+            "America/Los_Angeles",
+            dateJan,
+            UTZFMT_STYLE_SPECIFIC_LONG,
+            "Pacific Standard Time",
+            UTZFMT_TIME_TYPE_STANDARD
+        },
+        {
+            "en",
+            "America/Los_Angeles",
+            dateJul,
+            UTZFMT_STYLE_SPECIFIC_LONG,
+            "Pacific Daylight Time",
+            UTZFMT_TIME_TYPE_DAYLIGHT
+        },
+        {
+            "ja",
+            "America/Los_Angeles",
+            dateJan,
+            UTZFMT_STYLE_ZONE_ID,
+            "America/Los_Angeles",
+            UTZFMT_TIME_TYPE_UNKNOWN
+        },
+        {
+            "fr",
+            "America/Los_Angeles",
+            dateJul,
+            UTZFMT_STYLE_ZONE_ID_SHORT,
+            "uslax",
+            UTZFMT_TIME_TYPE_UNKNOWN
+        },
+        {
+            "en",
+            "America/Los_Angeles",
+            dateJan,
+            UTZFMT_STYLE_EXEMPLAR_LOCATION,
+            "Los Angeles",
+            UTZFMT_TIME_TYPE_UNKNOWN
+        },
+
+        {
+            "ja",
+            "Asia/Tokyo",
+            dateJan,
+            UTZFMT_STYLE_GENERIC_LONG,
+            "\\u65E5\\u672C\\u6A19\\u6E96\\u6642",
+            UTZFMT_TIME_TYPE_UNKNOWN
+        },
+
+        {0, 0, 0.0, UTZFMT_STYLE_GENERIC_LOCATION, 0, UTZFMT_TIME_TYPE_UNKNOWN}
+    };
+
+    for (int32_t i = 0; DATA[i].locale; i++) {
+        UErrorCode status = U_ZERO_ERROR;
+        LocalPointer<TimeZoneFormat> tzfmt(TimeZoneFormat::createInstance(Locale(DATA[i].locale), status));
+        if (U_FAILURE(status)) {
+            dataerrln("Fail TimeZoneFormat::createInstance: %s", u_errorName(status));
+            continue;
+        }
+
+        LocalPointer<TimeZone> tz(TimeZone::createTimeZone(DATA[i].tzid));
+        UnicodeString out;
+        UTimeZoneFormatTimeType timeType;
+
+        tzfmt->format(DATA[i].style, *(tz.getAlias()), DATA[i].date, out, &timeType);
+        UnicodeString expected(DATA[i].expected, -1, US_INV);
+        expected = expected.unescape();
+
+        assertEquals(UnicodeString("Format result for ") + DATA[i].tzid + " (Test Case " + i + ")", expected, out);
+        if (DATA[i].timeType != timeType) {
+            dataerrln(UnicodeString("Formatted time zone type (Test Case ") + i + "), returned="
+                + timeType + ", expected=" + DATA[i].timeType);
+        }
+    }
+}
 
 #endif /* #if !UCONFIG_NO_FORMATTING */
