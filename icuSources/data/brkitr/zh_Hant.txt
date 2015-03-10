@@ -3,15 +3,15 @@
 // * Copyright (C) 2014 International Business Machines
 // * Corporation and others. All Rights Reserved.
 // * Tool: org.unicode.cldr.icu.NewLdml2IcuConverter
-// * Source File: <path>/common/segments/fi.xml ../../xml/brkitr/fi.xml
+// * Source File: <path>/common/segments/zh_Hant.xml ../../xml/brkitr/zh_Hant.xml
 // *
 // ***************************************************************************
-fi{
+zh_Hant{
     Version{"2.0.82.42"}
     boundaries{
-        line:process(dependency){"line_fi.brk"}
-        line_loose:process(dependency){"line_loose_fi.brk"}
-        line_normal:process(dependency){"line_normal_fi.brk"}
-        line_strict:process(dependency){"line_fi.brk"}
+        line:process(dependency){"line.brk"}
+        line_loose:process(dependency){"line_loose_cj.brk"}
+        line_normal:process(dependency){"line_normal_cj.brk"}
+        line_strict:process(dependency){"line.brk"}
     }
 }
