@@ -4,13 +4,7 @@
 // * Corporation and others. All Rights Reserved.
 // *
 // ***************************************************************************
-en_JP{
-    %%Parent{"en_001"}
-    Currencies{
-        JPY{
-            "¥",
-            "Japanese Yen",
-        }
-    }
-    Version{"2.1.19.14"}
+es_BZ{
+    %%Parent{"es_419"}
+    Version{"2.1.22.17"}
 }
