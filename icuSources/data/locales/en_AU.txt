@@ -94,6 +94,10 @@ en_AU{
                 "{1} 'at' {0}",
                 "{1}, {0}",
             }
+            availableFormats{
+                yMEd{"E, dd/MM/y"}
+                yMd{"dd/MM/y"}
+             }
             intervalFormats{
                 GyMEd{
                     G{"E dd/MM/y GGGGG – E dd/MM/y GGGGG"}
@@ -145,19 +149,29 @@ en_AU{
                 "EEEE, d MMMM y",
                 "d MMMM y",
                 "d MMM y",
-                "d/M/yy",
+                "d/M/y",
                 "{1}, {0}",
                 "{1} 'at' {0}",
                 "{1} 'at' {0}",
                 "{1} 'at' {0}",
                 "{1}, {0}",
             }
+            DateTimeSkeletons{
+                "ahmmsszzzz",
+                "ahmmssz",
+                "ahmmss",
+                "ahmm",
+                "yMMMMEEEEd",
+                "yMMMMd",
+                "yMMMd",
+                "yyMd",
+            }
             availableFormats{
                 MEd{"E, d/M"}
                 Md{"d/M"}
-                yM{"M/yy"}
-                yMEd{"E, d/M/yy"}
-                yMd{"d/M/yy"}
+                yM{"M/y"}
+                yMEd{"E, d/M/y"}
+                yMd{"d/M/y"}
             }
             dayNames{
                 format{
@@ -287,6 +301,20 @@ en_AU{
             }
             monthNames{
                 format{
+                    abbreviated{
+                        "Jan",
+                        "Feb",
+                        "Mar",
+                        "Apr",
+                        "May",
+                        "Jun",
+                        "Jul",
+                        "Aug",
+                        "Sep",
+                        "Oct",
+                        "Nov",
+                        "Dec",
+                    }
                     narrow{
                         "J",
                         "F",
